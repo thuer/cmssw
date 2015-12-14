@@ -46,6 +46,7 @@ public:
   void statistics();
   bool generatePartonsAndHadronize();
   bool decay();
+  bool rearrangeWeights;
   bool residualDecay();
   void finalizeEvent();
   const char *classname() const { return "SherpaHadronizer"; }
@@ -67,6 +68,7 @@ private:
   SHERPA::Sherpa Generator;
   bool isInitialized;
   bool isRNGinitialized;
+  std::vector<std::string> weightlist;
 };
 
 
@@ -123,6 +125,12 @@ SherpaHadronizer::SherpaHadronizer(const edm::ParameterSet &params) :
     else SherpaDefaultWeight=params.getParameter<double>("SherpaDefaultWeight");
   if (!params.exists("maxEventsToPrint")) maxEventsToPrint=0;
     else maxEventsToPrint=params.getParameter<int>("maxEventsToPrint");
+  if (!params.exists("Weightlist")) {
+    rearrangeWeights=false;
+  } else {
+    rearrangeWeights=true;
+    weightlist=params.getParameter< std::vector<std::string> >("Weightlist");
+  }
 
 
   spf::SherpackFetcher Fetcher(params);
@@ -224,6 +232,7 @@ void SherpaHadronizer::statistics()
 
   //set the internal cross section in pb in GenRunInfoProduct
   runInfo().setInternalXSec(GenRunInfoProduct::XSec(xsec_val,xsec_err));
+//  runInfo().setWeightVector(weightlist);
 
 }
 
@@ -258,6 +267,29 @@ bool SherpaHadronizer::generatePartonsAndHadronize()
     // [2] event weight normalisation (in case of unweighted events event weights of ~ +/-1 can be obtained by (event weight)/(event weight normalisation))
     // [3] number of trials.
     // see also: https://sherpa.hepforge.org/doc/SHERPA-MC-2.1.0.html#Event-output-formats
+    //
+    
+    //vector to fill new weights in correct order 
+    std::vector<double> newWeights;
+    if (rearrangeWeights){
+      
+      for ( auto &i : weightlist ) {
+        if (evt->weights().has_key(i)) {
+          newWeights.push_back(evt->weights()[i]);
+        } else {
+          
+          throw cms::Exception("SherpaInterface") <<"Missing weights! Key " << i << " not found, please check the weight definition!" << std::endl;
+        }  
+        
+      }
+    }
+    
+//Change original weights for newer ones
+    evt->weights().clear();
+    for (auto& elem: newWeights) {
+      evt->weights().push_back(elem);
+    }
+    
     if(ATOOLS::ToType<int>(ATOOLS::rpa->gen.Variable("EVENT_GENERATION_MODE")) == 1){
       if (evt->weights().size()>2) {
         evt->weights()[0]/=evt->weights()[2];
@@ -321,3 +353,4 @@ double CMS_SHERPA_RNG::Get() {
 
 typedef edm::GeneratorFilter<SherpaHadronizer, gen::ExternalDecayDriver> SherpaGeneratorFilter;
 DEFINE_FWK_MODULE(SherpaGeneratorFilter);
+

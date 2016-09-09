@@ -275,6 +275,11 @@ bool SherpaHadronizer::generatePartonsAndHadronize()
     HepMC::GenEvent* evt = new HepMC::GenEvent();
     Generator.FillHepMCEvent(*evt);
 
+    // Temporary fix to get the GenCrossSection filled, should be fixed in next Sherpa release
+    std::unique_ptr<HepMC::GenCrossSection> p_xs(new HepMC::GenCrossSection);
+    p_xs->set_cross_section(Generator.TotalXS(), Generator.TotalErr());
+    evt->set_cross_section(*p_xs);
+
     // in case of unweighted events sherpa puts the max weight as event weight.
     // this is not optimal, we want 1 for unweighted events, so we check
     // whether we are producing unweighted events ("EVENT_GENERATION_MODE" == "1")
